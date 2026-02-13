@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex flex-col items-center justify-center min-h-[70vh]">
+    
+    <div class="text-center max-w-3xl mb-10 animate-fade-in-up">
+        <div class="inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-wider text-sniper-neon uppercase bg-emerald-900/30 rounded-full border border-emerald-500/20">
+            Versão Beta v1.0
+        </div>
+        <h1 class="text-5xl md:text-6xl font-bold mb-6 tracking-tight text-white">
+            Pare de jogar <br>
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500">dinheiro no lixo.</span>
+        </h1>
+        <p class="text-lg text-slate-400 max-w-2xl mx-auto">
+            Não compre PCs prontos de loja. Nosso algoritmo calcula o <span class="text-white font-semibold">Custo por FPS</span> real e monta o setup perfeito para o seu bolso.
+        </p>
+    </div>
+
+    <div class="w-full max-w-lg glass-panel p-8 rounded-2xl shadow-2xl shadow-emerald-900/20 border border-slate-700">
+        
+        {% if error %}
+        <div class="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded mb-6 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation"></i> {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/recomendar" method="POST" class="space-y-6">
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Quanto você pode gastar hoje?</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-slate-500 font-bold">R$</span>
+                    </div>
+                    <input type="number" name="budget" required placeholder="Ex: 1800" min="500"
+                        class="block w-full pl-10 pr-3 py-3 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-sniper-green focus:border-transparent text-white placeholder-slate-600 transition-all shadow-inner">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Qual o foco principal?</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-gamepad text-slate-500"></i>
+                    </div>
+                    <select name="goal" class="block w-full pl-10 pr-3 py-3 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-sniper-green focus:border-transparent text-white appearance-none transition-all shadow-inner cursor-pointer">
+                        <option value="jogar">Jogos Competitivos (CS, Valorant, LoL)</option>
+                        <option value="aaa">Jogos Pesados (GTA V, Cyberpunk)</option>
+                        <option value="trabalhar">Trabalho & Estudo</option>
+                    </select>
+                    <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
+                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full group relative flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-lg text-slate-900 bg-sniper-green hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-500 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)]">
+                <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                    <i class="fa-solid fa-crosshairs group-hover:animate-pulse"></i>
+                </span>
+                CALCULAR MELHOR SETUP
+            </button>
+        </form>
+    </div>
+
+    <div class="mt-8 flex gap-6 text-slate-500 text-sm grayscale opacity-60">
+        <div class="flex items-center gap-2"><i class="fa-solid fa-shield-halved"></i> Sem peças bomba</div>
+        <div class="flex items-center gap-2"><i class="fa-solid fa-bolt"></i> Zero gargalo</div>
+        <div class="flex items-center gap-2"><i class="fa-brands fa-python"></i> Powered by Python</div>
+    </div>
+
+</div>
+{% endblock %}
