@@ -13,15 +13,45 @@
         
         {% set porcentagem = (total / orcamento) * 100 %}
         <div class="mt-4 w-full max-w-md mx-auto bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-2.5 rounded-full" style="width: {{ porcentagem }}%"></div>
+            <div class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-2.5 rounded-full" 
+                 style="width: {{ porcentagem|int }}%"></div>
         </div>
         <p class="text-xs text-slate-500 mt-1">Você está usando {{ "%.0f"|format(porcentagem) }}% do seu limite.</p>
     </div>
 
+    <div class="flex justify-center mb-10">
+        <div class="inline-flex items-center gap-3 bg-emerald-900/20 border border-emerald-500/30 px-8 py-4 rounded-2xl shadow-lg shadow-emerald-900/20">
+            <div class="relative">
+                <i class="fa-solid fa-microchip text-sniper-neon text-xl animate-pulse"></i>
+            </div>
+            <div class="flex flex-col items-start text-left">
+                <span class="text-[10px] font-bold tracking-[0.2em] text-emerald-500/80 uppercase">AI VERDICT</span>
+                <span class="text-sm font-black text-white uppercase italic tracking-tighter">
+                    {% if ai_label == 'Gamer' %}
+                        🎮 Performance Gamer
+                    {% elif ai_label == 'Office/Multitask' %}
+                        ⚡ Office & Multitask
+                    {% elif ai_label == 'Workstation/Editor' %}
+                        🚀 Workstation / Editor
+                    {% else %}
+                        🔍 Analisando Setup...
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    {% if bottleneck %}
+    <div class="mb-8 bg-yellow-500/10 border border-yellow-500/50 p-4 rounded-xl text-yellow-200 text-center text-sm italic">
+        {{ bottleneck }}
+    </div>
+    {% endif %}
+
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-        <div class="glass-panel p-6 rounded-xl border-l-4 border-l-blue-500 hover:bg-slate-800 transition group relative overflow-hidden">
-            <div class="absolute top-0 right-0 bg-blue-500/20 px-3 py-1 rounded-bl-lg text-xs text-blue-300 font-bold">PROCESSADOR</div>
+        {% if cpu %}
+        <div class="bg-slate-800/50 p-6 rounded-xl border-l-4 border-l-blue-500 hover:bg-slate-800 transition group relative overflow-hidden border border-slate-700/50">
+            <div class="absolute top-0 right-0 bg-blue-500/20 px-3 py-1 rounded-bl-lg text-[10px] text-blue-300 font-bold">CPU</div>
             <div class="flex items-start gap-4">
                 <div class="bg-slate-900 p-3 rounded-lg text-blue-500 text-2xl">
                     <i class="fa-solid fa-microchip"></i>
@@ -34,15 +64,16 @@
             </div>
             <div class="mt-4 flex justify-between items-end border-t border-slate-700/50 pt-4">
                 <span class="text-xl font-bold text-white">R$ {{ "%.2f"|format(cpu.price) }}</span>
-                <a href="{{ cpu.affiliate_link }}" target="_blank" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded shadow-lg shadow-blue-900/50 transition">
+                <a href="{{ cpu.affiliate_link }}" target="_blank" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded transition">
                     Ver Oferta <i class="fa-solid fa-external-link-alt ml-1"></i>
                 </a>
             </div>
         </div>
+        {% endif %}
 
         {% if gpu %}
-        <div class="glass-panel p-6 rounded-xl border-l-4 border-l-purple-500 hover:bg-slate-800 transition group relative">
-            <div class="absolute top-0 right-0 bg-purple-500/20 px-3 py-1 rounded-bl-lg text-xs text-purple-300 font-bold">PLACA DE VÍDEO</div>
+        <div class="bg-slate-800/50 p-6 rounded-xl border-l-4 border-l-purple-500 hover:bg-slate-800 transition group relative border border-slate-700/50">
+            <div class="absolute top-0 right-0 bg-purple-500/20 px-3 py-1 rounded-bl-lg text-[10px] text-purple-300 font-bold">GPU</div>
             <div class="flex items-start gap-4">
                 <div class="bg-slate-900 p-3 rounded-lg text-purple-500 text-2xl">
                     <i class="fa-solid fa-gamepad"></i>
@@ -50,64 +81,54 @@
                 <div>
                     <h3 class="font-bold text-lg text-white group-hover:text-purple-400 transition">{{ gpu.name }}</h3>
                     <p class="text-sm text-slate-400 mt-1">Score: {{ gpu.performance_score }} pts</p>
-                    <p class="text-sm text-emerald-400"><i class="fa-solid fa-chart-line"></i> Alto Custo-Benefício</p>
+                    <p class="text-sm text-emerald-400"><i class="fa-solid fa-bolt"></i> Sniper ROI Approved</p>
                 </div>
             </div>
             <div class="mt-4 flex justify-between items-end border-t border-slate-700/50 pt-4">
                 <span class="text-xl font-bold text-white">R$ {{ "%.2f"|format(gpu.price) }}</span>
-                <a href="{{ gpu.affiliate_link }}" target="_blank" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded shadow-lg shadow-purple-900/50 transition">
+                <a href="{{ gpu.affiliate_link }}" target="_blank" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded transition">
                     Ver Oferta <i class="fa-solid fa-external-link-alt ml-1"></i>
                 </a>
             </div>
         </div>
         {% else %}
-        <div class="glass-panel p-6 rounded-xl border-l-4 border-l-emerald-500 bg-emerald-900/10">
+        <div class="bg-emerald-900/10 p-6 rounded-xl border-l-4 border-l-emerald-500 border border-emerald-500/20">
+            <h3 class="font-bold text-white">Gráfico Integrado</h3>
+            <p class="text-sm text-slate-400">Configuração focada em economia.</p>
+        </div>
+        {% endif %}
+
+        {% if ram %}
+        <div class="bg-slate-800/50 p-6 rounded-xl border-l-4 border-l-yellow-500 hover:bg-slate-800 transition relative border border-slate-700/50">
+            <div class="absolute top-0 right-0 bg-yellow-500/20 px-3 py-1 rounded-bl-lg text-[10px] text-yellow-300 font-bold">RAM</div>
             <div class="flex items-center gap-4">
-                <div class="bg-slate-900 p-3 rounded-lg text-emerald-500 text-2xl">
-                    <i class="fa-solid fa-leaf"></i>
+                <div class="bg-slate-900 p-3 rounded-lg text-yellow-500 text-xl">
+                    <i class="fa-solid fa-memory"></i>
                 </div>
-                <div>
-                    <h3 class="font-bold text-lg text-white">Gráfico Integrado</h3>
-                    <p class="text-sm text-slate-400">Usando a GPU do processador para economizar.</p>
-                    <p class="text-xs text-emerald-400 mt-1 font-bold">ECONOMIA DE R$ 1.500,00</p>
-                </div>
+                <h3 class="font-bold text-base text-white">{{ ram.name }}</h3>
+            </div>
+            <div class="mt-4 flex justify-between items-center border-t border-slate-700/50 pt-2">
+                <span class="font-bold text-white">R$ {{ "%.2f"|format(ram.price) }}</span>
+                <a href="{{ ram.affiliate_link }}" target="_blank" class="text-xs text-blue-400 font-bold">LINK <i class="fa-solid fa-arrow-right ml-1"></i></a>
             </div>
         </div>
         {% endif %}
 
-        <div class="glass-panel p-6 rounded-xl border-l-4 border-l-yellow-500 hover:bg-slate-800 transition relative">
-            <div class="absolute top-0 right-0 bg-yellow-500/20 px-3 py-1 rounded-bl-lg text-xs text-yellow-300 font-bold">MEMÓRIA</div>
-            <div class="flex items-start gap-4">
-                <div class="bg-slate-900 p-3 rounded-lg text-yellow-500 text-xl">
-                    <i class="fa-solid fa-memory"></i>
-                </div>
-                <div>
-                    <h3 class="font-bold text-base text-white">{{ ram.name }}</h3>
-                    <p class="text-sm text-slate-400">Essencial para fluidez</p>
-                </div>
-            </div>
-            <div class="mt-4 flex justify-between items-center border-t border-slate-700/50 pt-2">
-                <span class="font-bold text-white">R$ {{ "%.2f"|format(ram.price) }}</span>
-                <a href="{{ ram.affiliate_link }}" target="_blank" class="text-sm text-blue-400 hover:text-blue-300 hover:underline">Link <i class="fa-solid fa-arrow-right text-xs"></i></a>
-            </div>
-        </div>
-
-        <div class="glass-panel p-6 rounded-xl border-l-4 border-l-red-500 hover:bg-slate-800 transition relative">
-            <div class="absolute top-0 right-0 bg-red-500/20 px-3 py-1 rounded-bl-lg text-xs text-red-300 font-bold">ARMAZENAMENTO</div>
-            <div class="flex items-start gap-4">
+        {% if ssd %}
+        <div class="bg-slate-800/50 p-6 rounded-xl border-l-4 border-l-red-500 hover:bg-slate-800 transition relative border border-slate-700/50">
+            <div class="absolute top-0 right-0 bg-red-500/20 px-3 py-1 rounded-bl-lg text-[10px] text-red-300 font-bold">SSD</div>
+            <div class="flex items-center gap-4">
                 <div class="bg-slate-900 p-3 rounded-lg text-red-500 text-xl">
                     <i class="fa-solid fa-bolt"></i>
                 </div>
-                <div>
-                    <h3 class="font-bold text-base text-white">{{ ssd.name }}</h3>
-                    <p class="text-sm text-slate-400">Velocidade do Sistema</p>
-                </div>
+                <h3 class="font-bold text-base text-white">{{ ssd.name }}</h3>
             </div>
             <div class="mt-4 flex justify-between items-center border-t border-slate-700/50 pt-2">
                 <span class="font-bold text-white">R$ {{ "%.2f"|format(ssd.price) }}</span>
-                <a href="{{ ssd.affiliate_link }}" target="_blank" class="text-sm text-blue-400 hover:text-blue-300 hover:underline">Link <i class="fa-solid fa-arrow-right text-xs"></i></a>
+                <a href="{{ ssd.affiliate_link }}" target="_blank" class="text-xs text-blue-400 font-bold">LINK <i class="fa-solid fa-arrow-right ml-1"></i></a>
             </div>
         </div>
+        {% endif %}
 
     </div>
 

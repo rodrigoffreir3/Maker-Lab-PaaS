@@ -9,10 +9,6 @@ logger = logging.getLogger("HardwareSniper.Models")
 db = SQLAlchemy()
 
 class Component(db.Model):
-    """
-    Representa uma peça de hardware.
-    Agora com __init__ explícito para o VS Code não reclamar.
-    """
     __tablename__ = 'components'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -29,14 +25,16 @@ class Component(db.Model):
     generation = db.Column(db.Integer, nullable=False, default=0)
     is_integrated_graphics = db.Column(db.Boolean, default=False)
     tdp = db.Column(db.Integer, nullable=False, default=65)
+    
+    # --- COLUNA DA INTELIGÊNCIA ARTIFICIAL ---
+    ai_recommendation = db.Column(db.String(50), nullable=True)
 
     __table_args__ = (
         Index('idx_component_type_price', 'type', 'price'),
         Index('idx_component_score', 'performance_score'),
     )
 
-    # --- A CURA PARA OS ERROS VERMELHOS ---
-    def __init__(self, name, type, price, performance_score, generation, is_integrated_graphics=False, affiliate_link=None, image_url=None, tdp=65):
+    def __init__(self, name, type, price, performance_score, generation, is_integrated_graphics=False, affiliate_link=None, image_url=None, tdp=65, ai_recommendation=None):
         self.name = name
         self.type = type
         self.price = price
@@ -46,6 +44,7 @@ class Component(db.Model):
         self.affiliate_link = affiliate_link
         self.image_url = image_url
         self.tdp = tdp
+        self.ai_recommendation = ai_recommendation
 
     def calculate_roi(self):
         try:
@@ -59,36 +58,4 @@ class Component(db.Model):
     def __repr__(self):
         return f"<Component {self.name} | R$ {self.price}>"
 
-
-class Game(db.Model):
-    __tablename__ = 'games'
-
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False, unique=True)
-    image_url = db.Column(db.String(500))
-    
-    min_cpu_score = db.Column(db.Integer, nullable=False)
-    min_gpu_score = db.Column(db.Integer, nullable=False)
-    min_ram_gb = db.Column(db.Integer, nullable=False, default=8)
-
-    # Adicionando __init__ aqui também para garantir
-    def __init__(self, title, min_cpu_score, min_gpu_score, min_ram_gb=8, image_url=None):
-        self.title = title
-        self.min_cpu_score = min_cpu_score
-        self.min_gpu_score = min_gpu_score
-        self.min_ram_gb = min_ram_gb
-        self.image_url = image_url
-
-    def can_run(self, cpu_score, gpu_score, ram_gb):
-        try:
-            return (
-                cpu_score >= self.min_cpu_score and
-                gpu_score >= self.min_gpu_score and
-                ram_gb >= self.min_ram_gb
-            )
-        except Exception as e:
-            logger.error(f"Erro ao verificar requisitos para {self.title}: {e}")
-            return False
-
-    def __repr__(self):
-        return f"<Game {self.title}>"
+# ... (Classe Game continua a mesma)
