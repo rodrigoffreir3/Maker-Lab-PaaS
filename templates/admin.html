@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto p-6">
+    <div class="flex justify-between items-center mb-10">
+        <h1 class="text-3xl font-black text-white tracking-tighter italic">SNIPER <span class="text-emerald-500">CONTROL</span></h1>
+        <div class="bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
+            <span class="text-xs text-slate-400 uppercase font-bold">Status do Bot:</span>
+            <span class="text-xs text-emerald-400 font-black animate-pulse ml-2">● ONLINE</span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+            <p class="text-slate-400 text-xs font-bold uppercase mb-1">Total de Itens</p>
+            <h2 class="text-4xl font-black text-white">{{ total }}</h2>
+        </div>
+        <div class="bg-slate-800/50 p-6 rounded-2xl border border-emerald-500/30">
+            <p class="text-emerald-500 text-xs font-bold uppercase mb-1">Links Reais Mapeados</p>
+            <h2 class="text-4xl font-black text-white">{{ links }}</h2>
+            <div class="w-full bg-slate-700 h-1.5 mt-4 rounded-full overflow-hidden">
+                <div class="bg-emerald-500 h-full" style="width: {{ (links/total)*100 if total > 0 else 0 }}%"></div>
+            </div>
+        </div>
+        <div class="bg-slate-800/50 p-6 rounded-2xl border border-blue-500/30">
+            <p class="text-blue-400 text-xs font-bold uppercase mb-1">Peças Analisadas pela IA</p>
+            <h2 class="text-4xl font-black text-white">{{ total }}</h2>
+        </div>
+    </div>
+
+    <div class="bg-slate-800/50 rounded-2xl border border-slate-700 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-700 bg-slate-800/80">
+            <h3 class="text-white font-bold">Top 10 Melhores Oportunidades (ROI Sniper)</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-900/50 text-slate-500 text-[10px] uppercase font-bold">
+                    <tr>
+                        <th class="px-6 py-3">Componente</th>
+                        <th class="px-6 py-3 text-center">Tipo</th>
+                        <th class="px-6 py-3">Preço Médio</th>
+                        <th class="px-6 py-3">Preço Atual</th>
+                        <th class="px-6 py-3 text-emerald-400">Economia Real</th>
+                        <th class="px-6 py-3">Ação</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm text-slate-300 divide-y divide-slate-700/50">
+                    {% for item in ofertas %}
+                    <tr class="hover:bg-slate-700/30 transition-colors">
+                        <td class="px-6 py-4 font-medium text-white">{{ item.name[:50] }}...</td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="bg-slate-900 px-2 py-1 rounded text-[10px] uppercase">{{ item.type }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-slate-500">R$ {{ "%.2f"|format(item.avg_price_historic) }}</td>
+                        <td class="px-6 py-4 font-bold text-white">R$ {{ "%.2f"|format(item.price) }}</td>
+                        <td class="px-6 py-4">
+                            <span class="text-emerald-400 font-bold italic">
+                                -R$ {{ "%.2f"|format(item.avg_price_historic - item.price) }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <a href="{{ item.affiliate_link }}" target="_blank" class="text-blue-400 hover:text-blue-300 text-xs font-bold">VER LINK</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-8 text-center">
+        <a href="/" class="text-slate-500 hover:text-white text-xs uppercase tracking-widest font-bold">← Voltar para a Loja</a>
+    </div>
+</div>
+{% endblock %}

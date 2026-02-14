@@ -97,115 +97,57 @@ BRANDS_SSD = ["Kingston", "WD Green", "WD Blue", "Samsung", "Crucial", "XPG", "G
 
 def generate_products():
     final_list = []
-    names_seen = set() # Controle de duplicidade
+    names_seen = set()
 
     def add_product(item):
-        # Verifica se o nome já existe
         original_name = item['name']
         counter = 2
         while item['name'] in names_seen:
             item['name'] = f"{original_name} V{counter}"
             counter += 1
-        
         names_seen.add(item['name'])
         final_list.append(item)
 
-    # --- GERAR GPUs ---
-    target_count = 50
-    attempts = 0
-    while len([x for x in final_list if x['type'] == 'gpu']) < target_count:
-        base = random.choice(BASE_GPUS)
-        brand = random.choice(BRANDS_GPU)
-        store = random.choice(LOJAS)
-        price_var = base['price_base'] * random.uniform(0.9, 1.15)
-        
-        name = f"[{store}] Placa de Vídeo {brand} {base['model']} {base['vram']}"
-        link = f"https://fake-link.com/gpu/{random.randint(1000,99999)}"
-        
-        item = {
-            "name": name,
-            "type": "gpu",
-            "price": round(price_var, 2),
-            "score": base['score'],
-            "is_int": False,
-            "link": link
-        }
-        add_product(item)
-        attempts += 1
-        if attempts > 300: break
+    # --- GERADORES ---
+    categories = [
+        ('gpu', BASE_GPUS, BRANDS_GPU, 'price_base', 'vram'),
+        ('cpu', BASE_CPUS, None, 'price_base', None),
+        ('ram', BASE_RAMS, BRANDS_RAM, 'price', 'type'),
+        ('ssd', BASE_SSDS, BRANDS_SSD, 'price', 'cap')
+    ]
 
-    # --- GERAR CPUs ---
-    target_count = 50
-    attempts = 0
-    while len([x for x in final_list if x['type'] == 'cpu']) < target_count:
-        base = random.choice(BASE_CPUS)
-        store = random.choice(LOJAS)
-        price_var = base['price_base'] * random.uniform(0.9, 1.15)
-        suffix = random.choice(["Box", "Tray", "OEM", ""])
-        
-        name = f"[{store}] Processador {base['model']} {suffix}".strip()
-        link = f"https://fake-link.com/cpu/{random.randint(1000,99999)}"
-        
-        item = {
-            "name": name,
-            "type": "cpu",
-            "price": round(price_var, 2),
-            "score": base['score'],
-            "is_int": base['integrated'],
-            "link": link
-        }
-        add_product(item)
-        attempts += 1
-        if attempts > 300: break
+    for p_type, base_list, brands, p_key, extra_key in categories:
+        target = 50
+        count = 0
+        while count < target:
+            base = random.choice(base_list)
+            store = random.choice(LOJAS)
+            p_base = base[p_key]
+            price_var = round(p_base * random.uniform(0.9, 1.15), 2)
+            
+            if p_type == 'gpu':
+                brand = random.choice(brands)
+                name = f"[{store}] Placa de Vídeo {brand} {base['model']} {base['vram']}"
+                is_int = False
+            elif p_type == 'cpu':
+                suffix = random.choice(["Box", "Tray", "OEM", ""])
+                name = f"[{store}] Processador {base['model']} {suffix}".strip()
+                is_int = base['integrated']
+            elif p_type == 'ram':
+                brand = random.choice(brands)
+                name = f"[{store}] Memória RAM {brand} {base['cap']} {base['type']} {base['mhz']}MHz"
+                is_int = False
+            else: # ssd
+                brand = random.choice(brands)
+                name = f"[{store}] SSD {brand} {base['cap']} {base['type']}"
+                is_int = False
 
-    # --- GERAR RAMs ---
-    target_count = 50
-    attempts = 0
-    while len([x for x in final_list if x['type'] == 'ram']) < target_count:
-        base = random.choice(BASE_RAMS)
-        brand = random.choice(BRANDS_RAM)
-        store = random.choice(LOJAS)
-        price_var = base['price'] * random.uniform(0.85, 1.15)
-        
-        name = f"[{store}] Memória RAM {brand} {base['cap']} {base['type']} {base['mhz']}MHz"
-        link = f"https://fake-link.com/ram/{random.randint(1000,99999)}"
-        
-        item = {
-            "name": name,
-            "type": "ram",
-            "price": round(price_var, 2),
-            "score": base['mhz'],
-            "is_int": False,
-            "link": link
-        }
-        add_product(item)
-        attempts += 1
-        if attempts > 300: break
-
-    # --- GERAR SSDs ---
-    target_count = 50
-    attempts = 0
-    while len([x for x in final_list if x['type'] == 'ssd']) < target_count:
-        base = random.choice(BASE_SSDS)
-        brand = random.choice(BRANDS_SSD)
-        store = random.choice(LOJAS)
-        price_var = base['price'] * random.uniform(0.85, 1.15)
-        
-        name = f"[{store}] SSD {brand} {base['cap']} {base['type']}"
-        link = f"https://fake-link.com/ssd/{random.randint(1000,99999)}"
-        
-        item = {
-            "name": name,
-            "type": "ssd",
-            "price": round(price_var, 2),
-            "score": base['score'],
-            "is_int": False,
-            "link": link
-        }
-        add_product(item)
-        attempts += 1
-        if attempts > 300: break
-    
+            add_product({
+                "name": name, "type": p_type, "price": price_var,
+                "score": base['score'] if p_type != 'ram' else base['mhz'],
+                "is_int": is_int, "link": f"https://fake-link.com/{p_type}/{random.randint(1000,99999)}"
+            })
+            count += 1
     return final_list
 
 def seed():
@@ -215,7 +157,7 @@ def seed():
         db.drop_all()
         db.create_all()
         
-        print("🌱 Gerando 200 produtos calibrados (Fev/2026)...")
+        print("🌱 Populando 200 itens com Histórico Inicial...")
         produtos = generate_products()
         
         for p in produtos:
@@ -226,26 +168,16 @@ def seed():
                 performance_score=p['score'],
                 generation=0,
                 is_integrated_graphics=p['is_int'],
-                affiliate_link=p['link'],
-                image_url=None
+                affiliate_link=p['link']
             )
+            # Garantindo que o histórico inicial não seja nulo
+            novo.min_price_historic = p['price']
+            novo.avg_price_historic = p['price']
+            novo.price_update_count = 1
             db.session.add(novo)
         
         db.session.commit()
-        
-        # Estatísticas
-        count_gpu = Component.query.filter_by(type='gpu').count()
-        count_cpu = Component.query.filter_by(type='cpu').count()
-        count_ram = Component.query.filter_by(type='ram').count()
-        count_ssd = Component.query.filter_by(type='ssd').count()
-        
-        print("\n✨ RELATÓRIO DE POPULAÇÃO:")
-        print(f"🎮 GPUs: {count_gpu}")
-        print(f"🧠 CPUs: {count_cpu}")
-        print(f"💾 RAMs: {count_ram}")
-        print(f"💽 SSDs: {count_ssd}")
-        print(f"📦 TOTAL: {count_gpu + count_cpu + count_ram + count_ssd} itens")
-        print("\n🚀 O Banco está pronto para a batalha! Rode 'python app.py'")
+        print("\n🚀 Banco Resetado e Populado! Todos os campos de Histórico estão ativos.")
 
 if __name__ == "__main__":
     seed()

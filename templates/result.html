@@ -2,141 +2,64 @@
 
 {% block content %}
 <div class="max-w-4xl mx-auto">
-    
-    <div class="text-center mb-10">
-        <h2 class="text-3xl font-bold text-white mb-2">Setup Recomendado</h2>
-        <div class="inline-flex items-center gap-4 bg-slate-800 px-4 py-2 rounded-full border border-slate-700">
-            <span class="text-slate-400">Orçamento: R$ {{ orcamento }}</span>
-            <span class="h-4 w-px bg-slate-600"></span>
-            <span class="text-sniper-neon font-bold">Total Estimado: R$ {{ "%.2f"|format(total) }}</span>
-        </div>
-        
-        {% set porcentagem = (total / orcamento) * 100 %}
-        <div class="mt-4 w-full max-w-md mx-auto bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-2.5 rounded-full" 
-                 style="width: {{ porcentagem|int }}%"></div>
-        </div>
-        <p class="text-xs text-slate-500 mt-1">Você está usando {{ "%.0f"|format(porcentagem) }}% do seu limite.</p>
+    <div class="text-center mb-8">
+        <h2 class="text-3xl font-bold text-white">Setup Recomendado</h2>
+        <p class="text-sniper-neon font-mono text-xl">Total: R$ {{ "%.2f"|format(total) }}</p>
     </div>
 
     <div class="flex justify-center mb-10">
-        <div class="inline-flex items-center gap-3 bg-emerald-900/20 border border-emerald-500/30 px-8 py-4 rounded-2xl shadow-lg shadow-emerald-900/20">
-            <div class="relative">
-                <i class="fa-solid fa-microchip text-sniper-neon text-xl animate-pulse"></i>
-            </div>
-            <div class="flex flex-col items-start text-left">
-                <span class="text-[10px] font-bold tracking-[0.2em] text-emerald-500/80 uppercase">AI VERDICT</span>
-                <span class="text-sm font-black text-white uppercase italic tracking-tighter">
-                    {% if ai_label == 'Gamer' %}
-                        🎮 Performance Gamer
-                    {% elif ai_label == 'Office/Multitask' %}
-                        ⚡ Office & Multitask
-                    {% elif ai_label == 'Workstation/Editor' %}
-                        🚀 Workstation / Editor
-                    {% else %}
-                        🔍 Analisando Setup...
-                    {% endif %}
-                </span>
-            </div>
+        <div class="bg-slate-800 border border-emerald-500/30 px-6 py-3 rounded-xl flex items-center gap-3">
+            <i class="fa-solid fa-brain text-emerald-400 animate-pulse"></i>
+            <span class="text-white font-bold uppercase text-sm">AI Verdict: {{ ai_label }}</span>
         </div>
     </div>
-
-    {% if bottleneck %}
-    <div class="mb-8 bg-yellow-500/10 border border-yellow-500/50 p-4 rounded-xl text-yellow-200 text-center text-sm italic">
-        {{ bottleneck }}
-    </div>
-    {% endif %}
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% for item in [cpu, gpu, ram, ssd] %}
+            {% if item %}
+            <div class="bg-slate-800/80 p-6 rounded-2xl border-t-4 
+                {% if item.type == 'cpu' %} border-t-blue-500 
+                {% elif item.type == 'gpu' %} border-t-purple-500 
+                {% else %} border-t-slate-500 {% endif %}">
+                
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-white font-bold text-lg leading-tight w-2/3">{{ item.name }}</h3>
+                    <span class="bg-slate-900 text-[10px] px-2 py-1 rounded text-slate-400 uppercase font-black">{{ item.type }}</span>
+                </div>
 
-        {% if cpu %}
-        <div class="bg-slate-800/50 p-6 rounded-xl border-l-4 border-l-blue-500 hover:bg-slate-800 transition group relative overflow-hidden border border-slate-700/50">
-            <div class="absolute top-0 right-0 bg-blue-500/20 px-3 py-1 rounded-bl-lg text-[10px] text-blue-300 font-bold">CPU</div>
-            <div class="flex items-start gap-4">
-                <div class="bg-slate-900 p-3 rounded-lg text-blue-500 text-2xl">
-                    <i class="fa-solid fa-microchip"></i>
+                <div class="flex flex-wrap gap-2 mb-4">
+                    {% if item.old_price and item.price < item.old_price %}
+                        <span class="bg-red-500/20 text-red-400 text-[10px] px-2 py-1 rounded border border-red-500/30 font-bold animate-bounce">
+                            🔥 OFERTA: -R$ {{ "%.2f"|format(item.old_price - item.price) }}
+                        </span>
+                    {% endif %}
+                    
+                    {% if item.avg_price_historic and item.price < item.avg_price_historic %}
+                        <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-1 rounded border border-emerald-500/30 font-bold">
+                            📉 ABAIXO DA MÉDIA
+                        </span>
+                    {% endif %}
                 </div>
-                <div>
-                    <h3 class="font-bold text-lg text-white group-hover:text-blue-400 transition">{{ cpu.name }}</h3>
-                    <p class="text-sm text-slate-400 mt-1">Score: {{ cpu.performance_score }} pts</p>
-                    <p class="text-sm text-slate-500">Geração: {{ cpu.generation }}ª Gen</p>
-                </div>
-            </div>
-            <div class="mt-4 flex justify-between items-end border-t border-slate-700/50 pt-4">
-                <span class="text-xl font-bold text-white">R$ {{ "%.2f"|format(cpu.price) }}</span>
-                <a href="{{ cpu.affiliate_link }}" target="_blank" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded transition">
-                    Ver Oferta <i class="fa-solid fa-external-link-alt ml-1"></i>
-                </a>
-            </div>
-        </div>
-        {% endif %}
 
-        {% if gpu %}
-        <div class="bg-slate-800/50 p-6 rounded-xl border-l-4 border-l-purple-500 hover:bg-slate-800 transition group relative border border-slate-700/50">
-            <div class="absolute top-0 right-0 bg-purple-500/20 px-3 py-1 rounded-bl-lg text-[10px] text-purple-300 font-bold">GPU</div>
-            <div class="flex items-start gap-4">
-                <div class="bg-slate-900 p-3 rounded-lg text-purple-500 text-2xl">
-                    <i class="fa-solid fa-gamepad"></i>
+                <div class="flex justify-between items-center mt-6 border-t border-slate-700 pt-4">
+                    <div class="flex flex-col">
+                        <span class="text-2xl font-black text-white">R$ {{ "%.2f"|format(item.price) }}</span>
+                        <p class="text-[9px] text-slate-500 uppercase">Preço capturado via IA</p>
+                    </div>
+                    
+                    <a href="{{ item.affiliate_link if item.affiliate_link else '#' }}" 
+                       target="_blank" 
+                       class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-xs transition-all shadow-lg shadow-emerald-900/40">
+                        COMPRAR <i class="fa-solid fa-cart-shopping ml-1"></i>
+                    </a>
                 </div>
-                <div>
-                    <h3 class="font-bold text-lg text-white group-hover:text-purple-400 transition">{{ gpu.name }}</h3>
-                    <p class="text-sm text-slate-400 mt-1">Score: {{ gpu.performance_score }} pts</p>
-                    <p class="text-sm text-emerald-400"><i class="fa-solid fa-bolt"></i> Sniper ROI Approved</p>
-                </div>
             </div>
-            <div class="mt-4 flex justify-between items-end border-t border-slate-700/50 pt-4">
-                <span class="text-xl font-bold text-white">R$ {{ "%.2f"|format(gpu.price) }}</span>
-                <a href="{{ gpu.affiliate_link }}" target="_blank" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded transition">
-                    Ver Oferta <i class="fa-solid fa-external-link-alt ml-1"></i>
-                </a>
-            </div>
-        </div>
-        {% else %}
-        <div class="bg-emerald-900/10 p-6 rounded-xl border-l-4 border-l-emerald-500 border border-emerald-500/20">
-            <h3 class="font-bold text-white">Gráfico Integrado</h3>
-            <p class="text-sm text-slate-400">Configuração focada em economia.</p>
-        </div>
-        {% endif %}
-
-        {% if ram %}
-        <div class="bg-slate-800/50 p-6 rounded-xl border-l-4 border-l-yellow-500 hover:bg-slate-800 transition relative border border-slate-700/50">
-            <div class="absolute top-0 right-0 bg-yellow-500/20 px-3 py-1 rounded-bl-lg text-[10px] text-yellow-300 font-bold">RAM</div>
-            <div class="flex items-center gap-4">
-                <div class="bg-slate-900 p-3 rounded-lg text-yellow-500 text-xl">
-                    <i class="fa-solid fa-memory"></i>
-                </div>
-                <h3 class="font-bold text-base text-white">{{ ram.name }}</h3>
-            </div>
-            <div class="mt-4 flex justify-between items-center border-t border-slate-700/50 pt-2">
-                <span class="font-bold text-white">R$ {{ "%.2f"|format(ram.price) }}</span>
-                <a href="{{ ram.affiliate_link }}" target="_blank" class="text-xs text-blue-400 font-bold">LINK <i class="fa-solid fa-arrow-right ml-1"></i></a>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if ssd %}
-        <div class="bg-slate-800/50 p-6 rounded-xl border-l-4 border-l-red-500 hover:bg-slate-800 transition relative border border-slate-700/50">
-            <div class="absolute top-0 right-0 bg-red-500/20 px-3 py-1 rounded-bl-lg text-[10px] text-red-300 font-bold">SSD</div>
-            <div class="flex items-center gap-4">
-                <div class="bg-slate-900 p-3 rounded-lg text-red-500 text-xl">
-                    <i class="fa-solid fa-bolt"></i>
-                </div>
-                <h3 class="font-bold text-base text-white">{{ ssd.name }}</h3>
-            </div>
-            <div class="mt-4 flex justify-between items-center border-t border-slate-700/50 pt-2">
-                <span class="font-bold text-white">R$ {{ "%.2f"|format(ssd.price) }}</span>
-                <a href="{{ ssd.affiliate_link }}" target="_blank" class="text-xs text-blue-400 font-bold">LINK <i class="fa-solid fa-arrow-right ml-1"></i></a>
-            </div>
-        </div>
-        {% endif %}
-
+            {% endif %}
+        {% endfor %}
     </div>
 
-    <div class="mt-10 text-center">
-        <a href="/" class="inline-flex items-center gap-2 text-slate-400 hover:text-white transition">
-            <i class="fa-solid fa-arrow-left"></i> Fazer nova simulação
-        </a>
+    <div class="mt-12 text-center">
+        <a href="/" class="text-slate-500 hover:text-white transition-colors">← Refazer Simulação</a>
     </div>
-
 </div>
 {% endblock %}
