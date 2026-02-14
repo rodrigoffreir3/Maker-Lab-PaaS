@@ -8,6 +8,7 @@ from werkzeug.security import check_password_hash
 from models import db, Component
 from sqlalchemy import desc, func
 from brain.inference import predict_persona
+from flask_migrate import Migrate
 
 # --- CONFIGURAÇÃO DE LOGS ---
 logging.basicConfig(
@@ -41,9 +42,11 @@ def create_app():
     app.config['PERMANENT_SESSION_LIFETIME'] = 3600
     
     db.init_app(app)
+    migrate = Migrate(app, db)
     
     with app.app_context():
-        db.create_all()
+        # db.create_all()  <-- Removido, agora usamos Flask-Migrate
+        pass
         
     return app
 

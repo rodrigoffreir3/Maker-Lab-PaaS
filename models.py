@@ -37,13 +37,14 @@ class Component(db.Model):
     min_price_historic = db.Column(db.Float, nullable=True)     # O menor preço já registrado pelo bot
     avg_price_historic = db.Column(db.Float, nullable=True)     # Média móvel dos preços encontrados
     price_update_count = db.Column(db.Integer, default=0)       # Contador para cálculo da média
+    is_used = db.Column(db.Boolean, default=False)              # Indica se o item é usado
 
     __table_args__ = (
         Index('idx_component_type_price', 'type', 'price'),
         Index('idx_component_score', 'performance_score'),
     )
 
-    def __init__(self, name, type, price, performance_score, generation, is_integrated_graphics=False, affiliate_link=None, image_url=None, tdp=65, ai_recommendation=None):
+    def __init__(self, name, type, price, performance_score, generation, is_integrated_graphics=False, affiliate_link=None, image_url=None, tdp=65, ai_recommendation=None, is_used=False):
         self.name = name
         self.type = type
         self.price = price
@@ -54,6 +55,7 @@ class Component(db.Model):
         self.image_url = image_url
         self.tdp = tdp
         self.ai_recommendation = ai_recommendation
+        self.is_used = is_used
         
         # Inicializa o histórico com os valores atuais no momento do cadastro
         self.min_price_historic = price

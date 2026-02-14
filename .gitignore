@@ -5,3 +5,4 @@ instance/
 .DS_Store
 *.db
 prints_debug/
+codigo_reutilizavel/__pycache__/
