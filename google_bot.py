@@ -1,4 +1,5 @@
 from brain.inference import predict_persona
+from score_db import estimar_score 
 import time
 import random
 import re
@@ -13,63 +14,33 @@ import logging
 # --- SILENCIADOR DA IA ---
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# --- LOGS ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - BOT V17 - %(message)s', datefmt='%H:%M:%S')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - BOT V19 - %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger("HardwareSniper.Construtor")
 
-# ==========================================
-# 🎯 MASTER TARGET LIST
-# ==========================================
-MASTER_LIST = [
-    # --- GPUs ---
-    {"q": "Placa de Vídeo GeForce GT 730 4GB", "type": "gpu", "score": 900, "ref_price": 300, "is_int": False},
-    {"q": "Placa de Vídeo GeForce GT 1030 2GB", "type": "gpu", "score": 2600, "ref_price": 450, "is_int": False},
-    {"q": "Placa de Vídeo Radeon RX 580 8GB", "type": "gpu", "score": 8700, "ref_price": 600, "is_int": False},
-    {"q": "Placa de Vídeo GeForce GTX 1650 4GB", "type": "gpu", "score": 7800, "ref_price": 850, "is_int": False},
-    {"q": "Placa de Vídeo GeForce GTX 1660 Super 6GB", "type": "gpu", "score": 12700, "ref_price": 1200, "is_int": False},
-    {"q": "Placa de Vídeo Radeon RX 6600 8GB", "type": "gpu", "score": 15000, "ref_price": 1350, "is_int": False},
-    {"q": "Placa de Vídeo GeForce RTX 3050 8GB", "type": "gpu", "score": 12800, "ref_price": 1400, "is_int": False},
-    {"q": "Placa de Vídeo GeForce RTX 3060 12GB", "type": "gpu", "score": 17000, "ref_price": 1700, "is_int": False},
-    {"q": "Placa de Vídeo Radeon RX 7600 8GB", "type": "gpu", "score": 16500, "ref_price": 1750, "is_int": False},
-    {"q": "Placa de Vídeo GeForce RTX 4060 8GB", "type": "gpu", "score": 19500, "ref_price": 1900, "is_int": False},
-    {"q": "Placa de Vídeo GeForce RTX 4060 Ti 8GB", "type": "gpu", "score": 22500, "ref_price": 2500, "is_int": False},
-    {"q": "Placa de Vídeo Radeon RX 6750 XT 12GB", "type": "gpu", "score": 22000, "ref_price": 2400, "is_int": False},
-    {"q": "Placa de Vídeo GeForce RTX 4070 12GB", "type": "gpu", "score": 27000, "ref_price": 3800, "is_int": False},
-    {"q": "Placa de Vídeo GeForce RTX 4070 Ti 12GB", "type": "gpu", "score": 31000, "ref_price": 5000, "is_int": False},
-    {"q": "Placa de Vídeo Radeon RX 7800 XT 16GB", "type": "gpu", "score": 28000, "ref_price": 4200, "is_int": False},
-    {"q": "Placa de Vídeo GeForce RTX 4080 16GB", "type": "gpu", "score": 35000, "ref_price": 7500, "is_int": False},
+def generate_dynamic_targets():
+    """Gera alvos com nomes simplificados para facilitar o match no score_db"""
+    queries = []
+    
+    # GPUs NVIDIA e AMD
+    for model in ["GTX 1650", "GTX 1660 Super", "RTX 3060", "RTX 4060", "RTX 4060 Ti", "RTX 4070", "RTX 4070 Ti", "RTX 4080"]:
+        queries.append({"q": f"Placa de Vídeo {model}", "type": "gpu"})
+    for model in ["RX 580 8GB", "RX 6600", "RX 7600", "RX 6750 XT", "RX 7800 XT"]:
+        queries.append({"q": f"Placa de Vídeo {model}", "type": "gpu"})
 
-    # --- CPUs ---
-    {"q": "Processador Intel Core i3 10100F", "type": "cpu", "score": 8900, "ref_price": 450, "is_int": False},
-    {"q": "Processador Intel Core i3 12100F", "type": "cpu", "score": 14500, "ref_price": 600, "is_int": False},
-    {"q": "Processador Intel Core i5 10400F", "type": "cpu", "score": 12500, "ref_price": 600, "is_int": False},
-    {"q": "Processador Intel Core i5 12400F", "type": "cpu", "score": 19500, "ref_price": 850, "is_int": False},
-    {"q": "Processador Intel Core i5 13400F", "type": "cpu", "score": 26000, "ref_price": 1300, "is_int": False},
-    {"q": "Processador Intel Core i7 13700K", "type": "cpu", "score": 46000, "ref_price": 2800, "is_int": True},
-    {"q": "Processador Ryzen 3 3200G", "type": "cpu", "score": 7200, "ref_price": 450, "is_int": True},
-    {"q": "Processador Ryzen 5 4600G", "type": "cpu", "score": 16200, "ref_price": 650, "is_int": True},
-    {"q": "Processador Ryzen 5 5500", "type": "cpu", "score": 19500, "ref_price": 600, "is_int": False},
-    {"q": "Processador Ryzen 5 5600G", "type": "cpu", "score": 19800, "ref_price": 850, "is_int": True},
-    {"q": "Processador Ryzen 5 5600", "type": "cpu", "score": 21500, "ref_price": 850, "is_int": False},
-    {"q": "Processador Ryzen 7 5700X", "type": "cpu", "score": 26800, "ref_price": 1200, "is_int": False},
-    {"q": "Processador Ryzen 7 5700G", "type": "cpu", "score": 24500, "ref_price": 1250, "is_int": True},
-    {"q": "Processador Ryzen 7 5800X3D", "type": "cpu", "score": 28000, "ref_price": 2000, "is_int": False},
-    {"q": "Processador Ryzen 5 7600", "type": "cpu", "score": 29000, "ref_price": 1400, "is_int": True},
+    # CPUs Intel e AMD (Nomes normalizados para o dicionário)
+    for model in ["i3-10100F", "i3-12100F", "i5-10400F", "i5-12400F", "i5-13400F", "i7-13700K", "i9-14900K"]:
+        queries.append({"q": f"Processador Intel Core {model}", "type": "cpu"})
+    for model in ["Ryzen 3 3200G", "Ryzen 5 4600G", "Ryzen 5 5500", "Ryzen 5 5600", "Ryzen 5 5600G", "Ryzen 7 5700X", "Ryzen 7 5700G", "Ryzen 7 5800X3D", "Ryzen 5 7600", "Ryzen 7 7800X3D"]:
+        queries.append({"q": f"Processador AMD {model}", "type": "cpu"})
 
-    # --- RAM ---
-    {"q": "Memoria RAM 8GB DDR4 2666MHz", "type": "ram", "score": 2666, "ref_price": 130, "is_int": False},
-    {"q": "Memoria RAM 8GB DDR4 3200MHz", "type": "ram", "score": 3200, "ref_price": 140, "is_int": False},
-    {"q": "Memoria RAM 16GB DDR4 3200MHz", "type": "ram", "score": 3200, "ref_price": 250, "is_int": False},
-    {"q": "Memoria RAM 16GB DDR5 5200MHz", "type": "ram", "score": 5200, "ref_price": 350, "is_int": False},
-    {"q": "Memoria RAM 32GB DDR5 6000MHz", "type": "ram", "score": 6000, "ref_price": 750, "is_int": False},
+    # RAM e SSD
+    for size in ["8GB", "16GB"]:
+        queries.append({"q": f"Memoria RAM {size} DDR4 3200MHz", "type": "ram"})
+    for size in ["480GB", "1TB", "2TB"]:
+        queries.append({"q": f"SSD {size} NVMe M.2", "type": "ssd"})
 
-    # --- SSD ---
-    {"q": "SSD 240GB SATA", "type": "ssd", "score": 500, "ref_price": 120, "is_int": False},
-    {"q": "SSD 480GB SATA", "type": "ssd", "score": 550, "ref_price": 180, "is_int": False},
-    {"q": "SSD 500GB NVMe M.2", "type": "ssd", "score": 3500, "ref_price": 250, "is_int": False},
-    {"q": "SSD 1TB NVMe M.2", "type": "ssd", "score": 4000, "ref_price": 400, "is_int": False},
-    {"q": "SSD 2TB NVMe M.2", "type": "ssd", "score": 4200, "ref_price": 800, "is_int": False},
-]
+    random.shuffle(queries)
+    return queries
 
 def sniper_audit(c_score, g_score):
     try:
@@ -81,186 +52,140 @@ def sniper_audit(c_score, g_score):
     except:
         return "Desconhecido"
 
-def clean_price(text):
-    if not text: return None
+def clean_price_and_check_used(text):
+    if not text: return None, False
     try:
-        text = text.replace('\xa0', ' ').strip()
-        blacklist = [r'/mês', r'x\s\d+', r'\d+x', r'juros', r'entrada', r'cada', r'\(']
-        for term in blacklist:
-            if re.search(term, text, re.IGNORECASE): return None
-        match = re.search(r'R\$\s*([\d.,]+)', text)
+        text_lower = text.lower()
+        is_used = any(k in text_lower for k in ["usado", "seminovo", "recondicionado", "open box"])
+        
+        # Limpeza robusta de pontuação brasileira
+        text = text.replace('\xa0', ' ').replace('.', '').replace(',', '.')
+        match = re.search(r'R\$\s?([\d.]+)', text)
         if match:
-            num_str = match.group(1)
-            if num_str.count('.') > 1:
-                num_str = num_str.replace('.', '', num_str.count('.') - 1)
-            return float(num_str.replace('.', '').replace(',', '.'))
-        return None
+            return float(match.group(1)), is_used
+        return None, is_used
     except:
-        return None
+        return None, False
+
+def calculate_dynamic_ref_price(score, comp_type):
+    """Estima preço base para evitar lixo (cabos/coolers)"""
+    if score <= 0: return 500 # Fallback maior para evitar ignorar itens por score zero
+    if comp_type == 'gpu': return score * 0.12
+    if comp_type == 'cpu': return score * 0.06
+    if comp_type == 'ram': return score * 0.08
+    if comp_type == 'ssd': return score * 0.15
+    return 200
 
 def process_target(target, page):
     db_name = target['q']
-    c_score = target['score'] if target['type'] == 'cpu' else 10000
-    g_score = target['score'] if target['type'] == 'gpu' else 1000
-    persona_alvo = sniper_audit(c_score, g_score)
-    ref_price = target['ref_price']
+    comp_type = target['type']
     
-    # Adicionando o "Novo" de volta para garantir foco do algoritmo do Google, sem quebrar a busca
+    # NORMALIZAÇÃO: Remove prefixos para bater com as chaves do score_db.py
+    score_query = db_name.replace("Placa de Vídeo ", "").replace("Processador ", "").lower()
+    score = estimar_score(score_query, comp_type)
+    
+    ref_price = calculate_dynamic_ref_price(score, comp_type)
+    persona_alvo = sniper_audit(score if comp_type == 'cpu' else 10000, score if comp_type == 'gpu' else 1000)
+    
     search_url = f"https://www.google.com/search?q={db_name} Novo&tbm=shop&hl=pt-BR"
-    logger.info(f"🔎 Buscando: {db_name} | Foco IA: {persona_alvo}")
+    logger.info(f"🔎 Buscando: {db_name} | Score: {score} | Ref: R${ref_price:.0f}")
     
     try:
-        page.goto(search_url, timeout=25000, wait_until='domcontentloaded')
-        
-        # Scroll para descer e ativar imagens (Lazy Loading)
-        page.mouse.wheel(0, 800)
-        page.wait_for_timeout(2500)
+        # Aumento de Timeout para 40s e espera por rede ociosa
+        page.goto(search_url, timeout=40000, wait_until='networkidle')
+        page.mouse.wheel(0, 1000)
+        page.wait_for_timeout(4000)
 
         if "recaptcha" in page.url:
             logger.warning("🛡️ CAPTCHA Detectado!")
             return "CAPTCHA"
 
-        # JS Extractor focado em capturar links de produtos reais
-        js_extractor = """
-        () => {
-            let items = [];
-            let links = document.querySelectorAll('a');
-            links.forEach(a => {
-                let href = a.href;
-                // Exclui links internos irrelevantes do google
-                if (href && !href.startsWith('javascript') && !href.includes('google.com/search') && !href.includes('google.com/preferences')) {
-                    // Tem que ser um link de redirecionamento de oferta ou da própria loja
-                    let is_product = href.includes('/shopping/product') || href.includes('/aclk') || href.includes('url?url=') || !href.includes('google.com');
-                    
-                    if(is_product) {
-                        let container = a.parentElement;
-                        for(let i = 0; i < 6; i++) {
-                            if (container && container.innerText && container.innerText.includes('R$')) {
-                                items.push({ link: href, text: container.innerText });
-                                break;
-                            }
-                            if (container) container = container.parentElement;
-                        }
-                    }
+        # Extrator JS focado em contêineres oficiais de produtos
+        extracted_data = page.evaluate("""() => {
+            let results = [];
+            document.querySelectorAll('div[data-docid], .sh-dgr__content, .sh-dlr__list-result').forEach(el => {
+                let a = el.querySelector('a');
+                if (a && a.href && !a.href.includes('google.com')) {
+                    results.push({ link: a.href, text: el.innerText });
                 }
             });
-            return items;
-        }
-        """
-        
-        extracted_data = page.evaluate(js_extractor)
+            return results;
+        }""")
         
         best_price = float('inf')
         best_link = None
-        
-        # --- RADAR DE DEBUG ---
         precos_vistos = []
 
         for item in extracted_data:
-            price = clean_price(item.get('text', ''))
-            href = item.get('link', '')
-            
-            if price and href:
+            price, is_used = clean_price_and_check_used(item['text'])
+            if price and not is_used:
                 precos_vistos.append(price)
-                # Filtro: A peça tem que custar no mínimo 35% e no máximo 300% (3.0x) do preço base
-                if (ref_price * 0.35) < price < (ref_price * 3.0):
+                # Filtro dinâmico: Aceita de 20% a 400% da referência
+                if (ref_price * 0.2) < price < (ref_price * 4.0):
                     if price < best_price:
                         best_price = price
-                        best_link = f"https://www.google.com{href}" if href.startswith('/') else href
+                        best_link = item['link']
 
-        if best_price != float('inf') and best_link:
+        if best_link and best_price != float('inf'):
             component = Component.query.filter_by(name=db_name).first()
-            
             if not component:
                 component = Component(
-                    name=db_name,
-                    type=target['type'],
-                    price=best_price,
-                    performance_score=target['score'],
-                    generation=0,
-                    is_integrated_graphics=target['is_int'],
-                    affiliate_link=best_link,
-                    ai_recommendation=persona_alvo
+                    name=db_name, type=comp_type, price=best_price, performance_score=score,
+                    generation=0, is_integrated_graphics="g" in db_name.lower(),
+                    affiliate_link=best_link, ai_recommendation=persona_alvo
                 )
                 db.session.add(component)
-                logger.info(f"✨ NOVA PEÇA CRIADA: {db_name} por R$ {best_price}")
+                logger.info(f"✨ CRIADO: {db_name} - R${best_price}")
             else:
-                if component.min_price_historic is None or best_price < component.min_price_historic:
-                    component.min_price_historic = best_price
-                
-                count = component.price_update_count or 0
-                avg = component.avg_price_historic or best_price
-                component.avg_price_historic = ((avg * count) + best_price) / (count + 1)
-                component.price_update_count = count + 1
-                
-                old = component.price
-                component.old_price = old
-                component.price = best_price
-                component.affiliate_link = best_link  
-                component.ai_recommendation = persona_alvo
-                
-                logger.info(f"🎯 PREÇO ATUALIZADO: R$ {old} -> R$ {best_price}")
+                component.old_price, component.price = component.price, best_price
+                component.affiliate_link = best_link
+                logger.info(f"🎯 ATUALIZADO: {db_name} - R${best_price}")
             
             db.session.commit()
             return True
         else:
-            # Se falhou, me avisa O QUE ele enxergou na tela para diagnosticarmos
-            vistos_str = str(precos_vistos[:5]) if precos_vistos else "Nenhum R$ lido"
-            logger.warning(f"⚠️ IGNORADO. Ref: R${ref_price} | Lidos na tela: {vistos_str}")
+            vistos = str(precos_vistos[:5]) if precos_vistos else "Vazio"
+            logger.warning(f"⚠️ FALHA: {db_name} não passou no filtro. Vistos: {vistos}")
             return False
             
     except Exception as e:
-        logger.error(f"Erro na busca de {db_name}: {e}")
+        logger.error(f"❌ Erro em {db_name}: {e}")
         return False
 
-def process_batch(targets_batch):
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, args=["--disable-blink-features=AutomationControlled"])
-        context = browser.new_context(
-            viewport={'width': 1280, 'height': 800},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-        )
-        
-        context.route("**/*", lambda route: route.abort() 
-                      if route.request.resource_type in ["image", "media", "font", "stylesheet"] 
-                      else route.continue_())
-        
-        page = context.new_page()
-        
-        for target in targets_batch:
-            status = process_target(target, page)
-            if status == "CAPTCHA":
-                browser.close()
-                return False
-            time.sleep(random.uniform(4, 7))
-            
-        browser.close()
-        return True
+def process_batch(targets_batch, page):
+    for target in targets_batch:
+        status = process_target(target, page)
+        if status == "CAPTCHA": return False
+        time.sleep(random.uniform(5, 10))
+    return True
 
 def run_bot():
     app = create_app()
     with app.app_context():
         print("\n" + "="*50)
-        print("🏗️  HARDWARE SNIPER BOT V17 - O VIDENTE")
-        print("🎯 Lógica: Remoção de -usado + Radar de Preços")
+        print("🏗️  HARDWARE SNIPER BOT V19 - MODO EXTERMINADOR")
+        print("🎯 Lógica: Match de Nome Agressivo + Extração de Contêiner")
         print("="*50 + "\n")
         
         while True:
-            targets_shuffled = MASTER_LIST.copy()
-            random.shuffle(targets_shuffled)
-            
+            targets = generate_dynamic_targets()
             batch_size = 10
             
-            for i in range(0, len(targets_shuffled), batch_size):
-                batch = targets_shuffled[i:i + batch_size]
-                print(f"\n🚀 LOTE {(i // batch_size) + 1} de {(len(targets_shuffled) // batch_size) + 1}")
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=False)
+                context = browser.new_context(viewport={'width': 1280, 'height': 800})
+                page = context.new_page()
                 
-                if not process_batch(batch):
-                    print("🛡️ Bloqueio ou Captcha. Aguardando 120s...")
-                    time.sleep(120)
+                for i in range(0, len(targets), batch_size):
+                    batch = targets[i:i + batch_size]
+                    print(f"\n🚀 LOTE {(i // batch_size) + 1}")
+                    if not process_batch(batch, page):
+                        print("🛡️ Bloqueio detectado. Pausando 120s...")
+                        time.sleep(120)
+                        break
+                    gc.collect()
                 
-                gc.collect()
-                print("🧹 RAM Reciclada.")
+                browser.close()
             
             print("\n💤 Ciclo finalizado. Reiniciando em 5 minutos...")
             time.sleep(300)
