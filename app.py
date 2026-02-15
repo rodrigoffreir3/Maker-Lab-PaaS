@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, session, redirect, url_for
 from werkzeug.security import check_password_hash
 from models import db, Component
 from sqlalchemy import desc, func
-from brain.inference import predict_persona
+from brain.physics_engine import predict_persona
 
 # --- CONFIGURAÇÃO DE LOGS ---
 logging.basicConfig(
