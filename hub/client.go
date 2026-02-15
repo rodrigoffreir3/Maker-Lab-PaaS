@@ -1,6 +1,8 @@
 package hub
 
 import (
+	"bytes"
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -43,7 +45,33 @@ func (c *Client) ReadPump() {
 		if err != nil {
 			break
 		}
-		c.Hub.Broadcast <- message
+
+		// --- MÁGICA DA INTEGRAÇÃO (GO -> PYTHON) ---
+		// 1. Prepara os dados (JSON) para enviar ao Cérebro Python
+		payload := map[string]interface{}{
+			"project_id": c.AgentID,
+			"command":    string(message),
+		}
+		jsonData, _ := json.Marshal(payload)
+
+		// 2. Pergunta ao simulador Python (porta 5000) se o comando é válido
+		resp, err := http.Post("http://localhost:5000/simulate", "application/json", bytes.NewBuffer(jsonData))
+
+		if err != nil {
+			log.Printf("❌ Erro ao consultar simulador: %v", err)
+			c.Send <- []byte(`{"status": "error", "message": "Simulador Offline"}`)
+			continue // Pula para a próxima iteração sem travar o loop
+		}
+
+		// 3. Valida a resposta do simulador
+		if resp.StatusCode == http.StatusOK {
+			c.Hub.Broadcast <- message // Física OK! Repassa a mensagem.
+		} else {
+			c.Send <- []byte(`{"status": "error", "message": "Comando Inválido pela Física"}`)
+		}
+
+		// Fecha o body da requisição (MUITO IMPORTANTE para não vazar memória no loop)
+		resp.Body.Close()
 	}
 }
 
