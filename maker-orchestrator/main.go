@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"maker-orchestrator/hub" // Deve bater exatamente com o nome no go.mod + pasta
+	"maker-orchestrator/hub" // Certifique-se de que o nome do módulo no go.mod é 'maker-orchestrator'
 	"net/http"
 )
 

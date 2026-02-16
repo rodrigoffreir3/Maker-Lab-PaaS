@@ -1,132 +1,96 @@
 package hub
 
 import (
-	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/websocket"
-)
-
-const (
-	writeWait      = 10 * time.Second
-	pongWait       = 60 * time.Second
-	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 512
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Permitir conexões de qualquer origem para o Lab
+		return true // Permite que o Vite (porta 5173) se ligue sem erros de CORS
 	},
 }
 
 type Client struct {
-	Hub     *Hub
-	Conn    *websocket.Conn
-	Send    chan []byte
-	AgentID string // Campo essencial para identificar o projeto
+	Hub  *Hub
+	Conn *websocket.Conn
+	Send chan []byte
 }
 
-func (c *Client) ReadPump() {
+// Estrutura que mapeia exatamente o que o React envia
+type MessageData struct {
+	ProjectID int    `json:"project_id"`
+	Type      string `json:"type"`
+	Payload   string `json:"payload"`
+}
+
+func (c *Client) readPump() {
 	defer func() {
 		c.Hub.Unregister <- c
 		c.Conn.Close()
 	}()
-	c.Conn.SetReadLimit(maxMessageSize)
-	c.Conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.Conn.SetPongHandler(func(string) error { c.Conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
 			break
 		}
 
-		// --- MÁGICA DA INTEGRAÇÃO (GO -> PYTHON) ---
-		// 1. Prepara os dados (JSON) para enviar ao Cérebro Python
-		payload := map[string]interface{}{
-			"project_id": c.AgentID,
-			"command":    string(message),
-		}
-		jsonData, _ := json.Marshal(payload)
+		var msgData MessageData
+		if err := json.Unmarshal(message, &msgData); err == nil {
+			// Se o React mandar o comando de Simular
+			if msgData.Type == "simulation_start" {
+				fmt.Printf("\n================================================\n")
+				fmt.Printf("🎯 [ORQUESTRADOR GO] NOVA SIMULAÇÃO DISPARADA\n")
+				fmt.Printf("================================================\n")
+				fmt.Printf("ID do Projeto : %d\n", msgData.ProjectID)
+				fmt.Printf("Ação          : %s\n\n", msgData.Type)
+				fmt.Printf("[⚙️ CÓDIGO PYTHON RECEBIDO PARA EXECUÇÃO]\n")
+				fmt.Printf("%s\n", msgData.Payload)
+				fmt.Printf("================================================\n\n")
 
-		// 2. Pergunta ao simulador Python (porta 5000) se o comando é válido
-		resp, err := http.Post("http://localhost:5000/simulate", "application/json", bytes.NewBuffer(jsonData))
-
-		if err != nil {
-			log.Printf("❌ Erro ao consultar simulador: %v", err)
-			c.Send <- []byte(`{"status": "error", "message": "Simulador Offline"}`)
-			continue // Pula para a próxima iteração sem travar o loop
-		}
-
-		// 3. Valida a resposta do simulador
-		if resp.StatusCode == http.StatusOK {
-			c.Hub.Broadcast <- message // Física OK! Repassa a mensagem.
+				// Opcional: O Go envia uma mensagem de volta para o React a confirmar
+				resposta := `{"status": "executing", "message": "O Orquestrador Go está a preparar o hardware..."}`
+				c.Send <- []byte(resposta)
+			}
 		} else {
-			c.Send <- []byte(`{"status": "error", "message": "Comando Inválido pela Física"}`)
+			fmt.Printf("Mensagem bruta recebida: %s\n", string(message))
 		}
-
-		// Fecha o body da requisição (MUITO IMPORTANTE para não vazar memória no loop)
-		resp.Body.Close()
 	}
 }
 
-func (c *Client) WritePump() {
-	ticker := time.NewTicker(pingPeriod)
+func (c *Client) writePump() {
 	defer func() {
-		ticker.Stop()
 		c.Conn.Close()
 	}()
-	for {
-		select {
-		case message, ok := <-c.Send:
-			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if !ok {
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-			w, err := c.Conn.NextWriter(websocket.TextMessage)
-			if err != nil {
-				return
-			}
-			w.Write(message)
-			if err := w.Close(); err != nil {
-				return
-			}
-		case <-ticker.C:
-			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
+
+	// 🔥 Código Refatorado: Loop limpo e idiomático sobre o canal 🔥
+	for message := range c.Send {
+		err := c.Conn.WriteMessage(websocket.TextMessage, message)
+		if err != nil {
+			return // Se der erro a escrever, aborta a goroutine
 		}
 	}
+
+	// Se saiu do 'for range', significa que o c.Send foi fechado.
+	// Avisamos o navegador que vamos fechar a conexão.
+	c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 }
 
 func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
+		log.Println("Erro no Upgrade WebSocket:", err)
 		return
 	}
-
-	// Captura o ID do projeto via parâmetro na URL (?id=seu_projeto)
-	projectID := r.URL.Query().Get("id")
-	if projectID == "" {
-		projectID = "projeto_desconhecido"
-	}
-
-	client := &Client{
-		Hub:     hub,
-		Conn:    conn,
-		Send:    make(chan []byte, 256),
-		AgentID: projectID, // Preenche o ID aqui
-	}
-
+	client := &Client{Hub: hub, Conn: conn, Send: make(chan []byte, 256)}
 	client.Hub.Register <- client
-	go client.WritePump()
-	go client.ReadPump()
+
+	go client.writePump()
+	go client.readPump()
 }
