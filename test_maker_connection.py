@@ -3,7 +3,7 @@ import websockets
 import json
 
 async def test_lab():
-    uri = "ws://localhost:8080/ws/lab?id=projeto_teste_01"
+    uri = "ws://localhost:8080/ws/lab?id=1"
     async with websockets.connect(uri) as websocket:
         print("✅ Conectado ao Maker Lab!")
         
@@ -21,4 +21,5 @@ async def test_lab():
         response = await websocket.recv()
         print(f"📥 Resposta do Hub: {response}")
 
-asyncio.get_event_loop().run_until_complete(test_lab())
+if __name__ == "__main__":
+    asyncio.run(test_lab())

@@ -3,10 +3,10 @@ from app import app, db
 from models import Component, User, Project
 
 def seed_lab():
+    # Garante que a pasta 'instance' exista para não dar erro no SQLite
+    os.makedirs('instance', exist_ok=True)
+    
     with app.app_context():
-        # Caminho do banco (ajuste se o nome for diferente no seu app.py)
-        db_path = 'instance/hardware_sniper.db' # ou o nome que estiver no seu SQLALCHEMY_DATABASE_URI
-        
         print("🧨 Resetando banco de dados físico...")
         db.drop_all()
         db.create_all()
@@ -20,16 +20,29 @@ def seed_lab():
 
         print(f"🌱 Populando Lab com {len(components_data)} componentes...")
         for data in components_data:
-            # Forçando a criação sem o construtor automático se ele falhar
-            c = Component()
-            c.name = data["name"]
-            c.category = data["category"]
-            c.spec_sheet = data["spec_sheet"]
+            # Agora passando os parâmetros exatamente como o VS Code exigiu
+            c = Component(name=data["name"], category=data["category"], spec_sheet=data["spec_sheet"])
             db.session.add(c)
+        
+        print("🧑‍💻 Criando Tony Stark e Projeto de Teste...")
+        tony = User(username="tony_stark", password="password_segura")
+        db.session.add(tony)
+        db.session.commit() # Salva para gerar o ID do usuário
+
+        projeto_teste = Project(
+            name="Armadura Mark I",
+            description="Primeiro teste de física no Maker Lab",
+            user_id=tony.id,
+            board_type="Raspberry Pi 4",
+            circuit_data={"led_1": {"pin": 13}}, 
+            code_content="print('Hello World')"
+        )
+        db.session.add(projeto_teste)
         
         try:
             db.session.commit()
-            print("✅ Lab pronto e banco populado!")
+            print("✅ Lab pronto!")
+            print(f"🚀 O ID do projeto de teste é: {projeto_teste.id}")
         except Exception as e:
             db.session.rollback()
             print(f"❌ Erro ao salvar: {e}")
