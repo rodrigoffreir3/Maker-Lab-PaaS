@@ -12,7 +12,7 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Cpu, Zap, Activity, Server, Play, Code2, Save } from 'lucide-react';
+import { Cpu, Zap, Activity, Server, Play, Code2, Save, Terminal } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 
 // --- COMPONENTE PARA RENDERIZAR O ÍCONE CORRETO ---
@@ -109,27 +109,42 @@ const Sidebar = () => {
 const MakerStudio = () => {
   const reactFlowWrapper = useRef(null);
   const socketRef = useRef(null);
+  const logEndRef = useRef(null); // Ref para fazer auto-scroll no console
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [code, setCode] = useState("# Maker Lab Studio\nprint('Sistemas Online...')");
+  
+  // 🔥 NOVO ESTADO: Armazena os logs do terminal 🔥
+  const [logs, setLogs] = useState(["[SISTEMA]: Inicializando Ambiente Maker Lab..."]);
 
   const nodeTypes = useMemo(() => ({ default: MakerNode }), []);
+
+  // Faz o console rolar para a última linha automaticamente
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
 
   // 🔥 CONEXÃO WEBSOCKET COM O HUB GO 🔥
   useEffect(() => {
     socketRef.current = new WebSocket('ws://localhost:8080/ws/lab');
     
-    socketRef.current.onopen = () => console.log("⚡ Conectado ao Hub do Orquestrador Go");
+    socketRef.current.onopen = () => {
+        setLogs(prev => [...prev, "[SISTEMA]: Conectado ao Orquestrador Go."]);
+    };
+    
     socketRef.current.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            console.log("📩 Mensagem do Hub:", data);
+            setLogs(prev => [...prev, `[GO]: ${data.message || JSON.stringify(data)}`]);
         } catch (e) {
-            console.log("📩 Texto do Hub:", event.data);
+            setLogs(prev => [...prev, `[GO]: ${event.data}`]);
         }
     };
-    socketRef.current.onclose = () => console.log("🔌 Conexão com o Go encerrada");
+    
+    socketRef.current.onclose = () => {
+        setLogs(prev => [...prev, "[SISTEMA]: Conexão com o Orquestrador encerrada."]);
+    };
 
     return () => {
         if(socketRef.current) socketRef.current.close();
@@ -145,8 +160,12 @@ const MakerStudio = () => {
           setEdges(data.circuit_data.edges || []);
         }
         if (data.code_content) setCode(data.code_content);
+        setLogs(prev => [...prev, "[SISTEMA]: Projeto carregado com sucesso."]);
       })
-      .catch(error => console.error("Erro ao carregar:", error));
+      .catch(error => {
+          console.error("Erro ao carregar:", error);
+          setLogs(prev => [...prev, "[ERRO]: Falha ao carregar o projeto."]);
+      });
   }, [setNodes, setEdges]);
 
   const onConnect = useCallback(
@@ -184,36 +203,43 @@ const MakerStudio = () => {
   const handleSave = async () => {
     try {
       await axios.post('http://127.0.0.1:5000/save', { project_id: 1, nodes, edges, code });
-      alert("💾 Projeto salvo no SQLite!");
+      setLogs(prev => [...prev, "[SISTEMA]: 💾 Projeto salvo no SQLite com sucesso!"]);
     } catch (error) {
-      alert("Erro ao salvar projeto.");
+      setLogs(prev => [...prev, "[ERRO]: Falha ao salvar o projeto."]);
     }
   };
 
   const handleSimulate = async () => {
     if (nodes.length === 0) {
-      alert("⚠️ A bancada está vazia!");
+      setLogs(prev => [...prev, "[AVISO]: A bancada está vazia. Adicione componentes antes de simular."]);
       return;
     }
+    
+    setLogs(prev => [...prev, "[SISTEMA]: Iniciando rotina de simulação..."]);
+    
     try {
       // 1. Validar física no Python
-      await axios.post('http://127.0.0.1:5000/simulate', {
+      const response = await axios.post('http://127.0.0.1:5000/simulate', {
         project_id: 1, 
         command: `Simulação de ${nodes.length} peças`
       });
+
+      setLogs(prev => [...prev, `[CÉREBRO PYTHON]: ✅ Física Aprovada. Nível Lógico: ${response.data.logic_level}`]);
 
       // 2. 🔥 DISPARAR EVENTO PARA O HUB GO 🔥
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(JSON.stringify({
           project_id: 1,
-          type: "simulation_start", // Padronizado para o seu Hub
+          type: "simulation_start",
           payload: code
         }));
+        setLogs(prev => [...prev, "[SISTEMA]: Código despachado para o Orquestrador Go."]);
+      } else {
+        setLogs(prev => [...prev, "[ERRO]: WebSocket fechado. Verifique se o Orquestrador Go está rodando."]);
       }
 
-      alert(`✅ FÍSICA APROVADA\nCódigo enviado ao Hub Go!`);
     } catch (error) {
-      alert(`❌ ERRO: ${error.message}`);
+      setLogs(prev => [...prev, `[ERRO]: Falha na simulação -> ${error.message}`]);
     }
   };
 
@@ -240,6 +266,8 @@ const MakerStudio = () => {
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
+        
+        {/* ÁREA CENTRAL: Bancada de Desenho */}
         <div className="flex-1 h-full relative" ref={reactFlowWrapper}>
           <ReactFlow
             nodes={nodes}
@@ -259,13 +287,37 @@ const MakerStudio = () => {
           </ReactFlow>
         </div>
 
-        <div className="w-112.5 bg-[#1e1e1e] border-l border-slate-800 flex flex-col shrink-0 z-10 shadow-2xl">
-          <div className="h-10 bg-slate-900 border-b border-slate-800 flex items-center px-4 gap-2 text-slate-300 text-xs font-bold tracking-widest uppercase">
-            <Code2 size={16} className="text-emerald-500" /> Sandbox Python
+        {/* ÁREA DA DIREITA: Dividida em Editor e Console */}
+        <div className="w-112.5 border-l border-slate-800 flex flex-col shrink-0 z-10 shadow-2xl bg-slate-900">
+          
+          {/* TOPO: Editor de Código (70% da altura) */}
+          <div className="flex flex-col h-[70%] border-b border-slate-800">
+             <div className="h-10 bg-slate-900 flex items-center px-4 gap-2 text-slate-300 text-xs font-bold tracking-widest uppercase shrink-0">
+               <Code2 size={16} className="text-emerald-500" /> Sandbox Python
+             </div>
+             <div className="flex-1 pt-2 bg-[#1e1e1e]">
+               <Editor height="100%" defaultLanguage="python" theme="vs-dark" value={code} onChange={setCode} options={{ minimap: { enabled: false }, fontSize: 14, fontFamily: "Fira Code, monospace" }} />
+             </div>
           </div>
-          <div className="flex-1 pt-2">
-            <Editor height="100%" defaultLanguage="python" theme="vs-dark" value={code} onChange={setCode} options={{ minimap: { enabled: false }, fontSize: 14, fontFamily: "Fira Code, monospace" }} />
+
+          {/* BASE: Console de Saída (30% da altura) */}
+          <div className="flex flex-col h-[30%] bg-[#0d1117]">
+             <div className="h-8 bg-slate-900 flex items-center px-4 gap-2 text-slate-400 text-[10px] font-bold tracking-widest uppercase shrink-0 border-b border-slate-800">
+               <Terminal size={12} className="text-slate-400" /> Console Output
+             </div>
+             <div className="flex-1 p-3 overflow-y-auto font-mono text-xs text-slate-300 space-y-1">
+                {logs.map((logStr, index) => (
+                  <div key={index} className="wrap-break-word">
+                    <span className="text-slate-500 mr-2">{new Date().toLocaleTimeString('pt-BR', {hour12: false})}</span>
+                    <span className={logStr.includes('ERRO') || logStr.includes('AVISO') ? 'text-red-400' : logStr.includes('✅') || logStr.includes('GO') ? 'text-emerald-400' : 'text-slate-300'}>
+                        {logStr}
+                    </span>
+                  </div>
+                ))}
+                <div ref={logEndRef} /> {/* Âncora para o auto-scroll */}
+             </div>
           </div>
+
         </div>
       </div>
     </div>
