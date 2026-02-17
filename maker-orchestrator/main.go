@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"maker-orchestrator/hub" // Certifique-se de que o nome do módulo no go.mod é 'maker-orchestrator'
+	"maker-orchestrator/hub" // Conectado corretamente com a pasta filha
 	"net/http"
 )
 
@@ -18,7 +18,7 @@ func main() {
 		hub.ServeWs(h, w, r)
 	})
 
-	// 3. Rota de Health Check
+	// 3. Rota de Health Check (Útil para saber se o servidor de 10k está de pé)
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Maker Lab Orchestrator is Running..."))
 	})

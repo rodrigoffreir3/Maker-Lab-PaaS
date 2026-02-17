@@ -12,10 +12,9 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Cpu, Zap, Activity, Server, Play, Code2, Save, Terminal } from 'lucide-react';
+import { Cpu, Zap, Activity, Server, Play, Code2, Save, Terminal, Square, Trash2 } from 'lucide-react'; // 🔥 Importamos o Trash2
 import Editor from '@monaco-editor/react';
 
-// --- COMPONENTE PARA RENDERIZAR O ÍCONE CORRETO ---
 const NodeIcon = ({ iconName }) => {
   const iconProps = { size: 16, className: "shrink-0" };
   switch (iconName) {
@@ -27,7 +26,6 @@ const NodeIcon = ({ iconName }) => {
   }
 };
 
-// --- CUSTOM NODE COM CONECTORES ---
 const MakerNode = ({ data }) => {
   return (
     <div className="relative">
@@ -109,47 +107,73 @@ const Sidebar = () => {
 const MakerStudio = () => {
   const reactFlowWrapper = useRef(null);
   const socketRef = useRef(null);
-  const logEndRef = useRef(null); // Ref para fazer auto-scroll no console
+  const logEndRef = useRef(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
-  const [code, setCode] = useState("# Maker Lab Studio\nprint('Sistemas Online...')");
   
-  // 🔥 NOVO ESTADO: Armazena os logs do terminal 🔥
+  const defaultCode = "# Maker Lab Studio\nimport RPi.GPIO as GPIO\nimport time\n\nwhile True:\n    print('Ligando LED...')\n    digitalWrite(13, GPIO.HIGH)\n    time.sleep(1)\n    \n    print('Desligando LED...')\n    digitalWrite(13, GPIO.LOW)\n    time.sleep(1)";
+  const [code, setCode] = useState(defaultCode);
+  
   const [logs, setLogs] = useState(["[SISTEMA]: Inicializando Ambiente Maker Lab..."]);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   const nodeTypes = useMemo(() => ({ default: MakerNode }), []);
 
-  // Faz o console rolar para a última linha automaticamente
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  // 🔥 CONEXÃO WEBSOCKET COM O HUB GO 🔥
   useEffect(() => {
     socketRef.current = new WebSocket('ws://localhost:8080/ws/lab');
     
-    socketRef.current.onopen = () => {
-        setLogs(prev => [...prev, "[SISTEMA]: Conectado ao Orquestrador Go."]);
-    };
+    socketRef.current.onopen = () => setLogs(prev => [...prev, "[SISTEMA]: Conectado ao Orquestrador Go."]);
     
     socketRef.current.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            setLogs(prev => [...prev, `[GO]: ${data.message || JSON.stringify(data)}`]);
+            
+            if (data.status === "finished") {
+                setIsSimulating(false);
+                return;
+            }
+
+            if (data.status === "gpio_update") {
+                const isHigh = data.message.includes("-> 1");
+                
+                setNodes((nds) => nds.map((node) => {
+                    if (node.data.label.toUpperCase().includes("LED")) {
+                        return { 
+                            ...node, 
+                            style: { 
+                                ...node.style, 
+                                background: isHigh ? '#ef4444' : '#1e293b',
+                                boxShadow: isHigh ? '0 0 20px rgba(239, 68, 68, 0.8)' : '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
+                            } 
+                        };
+                    }
+                    return node;
+                }));
+                
+                setLogs(prev => [...prev, `[SISTEMA_ELETRICO]: ${data.message}`]);
+                return;
+            }
+
+            let prefix = "";
+            if (data.status === "stdout") prefix = "[HW]: ";
+            else if (data.status === "stderr") prefix = "[ERRO]: ";
+            else if (data.status === "system") prefix = "[GO]: ";
+
+            setLogs(prev => [...prev, `${prefix}${data.message}`]);
         } catch (e) {
-            setLogs(prev => [...prev, `[GO]: ${event.data}`]);
+            setLogs(prev => [...prev, `[ERRO DESCONHECIDO]: ${event.data}`]);
         }
     };
     
-    socketRef.current.onclose = () => {
-        setLogs(prev => [...prev, "[SISTEMA]: Conexão com o Orquestrador encerrada."]);
-    };
+    socketRef.current.onclose = () => setLogs(prev => [...prev, "[SISTEMA]: Conexão com o Orquestrador encerrada."]);
 
-    return () => {
-        if(socketRef.current) socketRef.current.close();
-    };
-  }, []);
+    return () => { if(socketRef.current) socketRef.current.close(); };
+  }, [setNodes]);
 
   useEffect(() => {
     axios.get('http://127.0.0.1:5000/project/1')
@@ -163,42 +187,46 @@ const MakerStudio = () => {
         setLogs(prev => [...prev, "[SISTEMA]: Projeto carregado com sucesso."]);
       })
       .catch(error => {
-          console.error("Erro ao carregar:", error);
           setLogs(prev => [...prev, "[ERRO]: Falha ao carregar o projeto."]);
       });
   }, [setNodes, setEdges]);
 
-  const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge({ ...params, animated: true, style: { stroke: '#10b981', strokeWidth: 2 } }, eds)),
-    [setEdges]
-  );
+  const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, animated: true, style: { stroke: '#10b981', strokeWidth: 2 } }, eds)), [setEdges]);
 
-  const onDrop = useCallback(
-    (event) => {
+  const onDrop = useCallback((event) => {
       event.preventDefault();
       const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
       const rawData = event.dataTransfer.getData('application/reactflow');
       if (!rawData) return;
+      
       const { nodeType, label, icon } = JSON.parse(rawData);
       const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX - reactFlowBounds.left,
         y: event.clientY - reactFlowBounds.top,
       });
+      
       let borderColor = '#334155';
       if (nodeType === 'board') borderColor = '#10b981';
       if (nodeType === 'actuator') borderColor = '#ef4444';
       if (nodeType === 'sensor') borderColor = '#f59e0b';
+      
       const newNode = {
         id: `comp_${Date.now()}`,
         type: 'default',
         position,
         data: { label, icon }, 
-        style: { background: '#1e293b', color: '#fff', border: `1px solid ${borderColor}`, borderRadius: '8px', padding: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)' }
+        style: { 
+            background: '#1e293b', 
+            color: '#fff', 
+            border: `1px solid ${borderColor}`, 
+            borderRadius: '8px', 
+            padding: '12px', 
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)',
+            transition: 'all 0.1s ease-in-out'
+        }
       };
       setNodes((nds) => nds.concat(newNode));
-    },
-    [reactFlowInstance, setNodes]
-  );
+  }, [reactFlowInstance, setNodes]);
 
   const handleSave = async () => {
     try {
@@ -209,16 +237,26 @@ const MakerStudio = () => {
     }
   };
 
+  // 🔥 NOVA FUNÇÃO: LIMPAR BANCADA 🔥
+  const handleClear = () => {
+    if (window.confirm("Limpar a bancada? Isso removerá as peças não salvas da tela.")) {
+        setNodes([]);
+        setEdges([]);
+        setCode(defaultCode);
+        setLogs(["[SISTEMA]: Bancada limpa. Pronto para um novo circuito."]);
+    }
+  };
+
   const handleSimulate = async () => {
     if (nodes.length === 0) {
       setLogs(prev => [...prev, "[AVISO]: A bancada está vazia. Adicione componentes antes de simular."]);
       return;
     }
     
-    setLogs(prev => [...prev, "[SISTEMA]: Iniciando rotina de simulação..."]);
+    setIsSimulating(true);
+    setLogs(prev => [...prev, "-----------------------------------", "[SISTEMA]: Iniciando rotina de simulação..."]);
     
     try {
-      // 1. Validar física no Python
       const response = await axios.post('http://127.0.0.1:5000/simulate', {
         project_id: 1, 
         command: `Simulação de ${nodes.length} peças`
@@ -226,20 +264,21 @@ const MakerStudio = () => {
 
       setLogs(prev => [...prev, `[CÉREBRO PYTHON]: ✅ Física Aprovada. Nível Lógico: ${response.data.logic_level}`]);
 
-      // 2. 🔥 DISPARAR EVENTO PARA O HUB GO 🔥
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({
-          project_id: 1,
-          type: "simulation_start",
-          payload: code
-        }));
-        setLogs(prev => [...prev, "[SISTEMA]: Código despachado para o Orquestrador Go."]);
+        socketRef.current.send(JSON.stringify({ project_id: 1, type: "simulation_start", payload: code }));
       } else {
-        setLogs(prev => [...prev, "[ERRO]: WebSocket fechado. Verifique se o Orquestrador Go está rodando."]);
+        setLogs(prev => [...prev, "[ERRO]: WebSocket fechado."]);
+        setIsSimulating(false);
       }
-
     } catch (error) {
       setLogs(prev => [...prev, `[ERRO]: Falha na simulação -> ${error.message}`]);
+      setIsSimulating(false);
+    }
+  };
+
+  const handleStop = () => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(JSON.stringify({ project_id: 1, type: "simulation_stop", payload: "" }));
     }
   };
 
@@ -252,45 +291,53 @@ const MakerStudio = () => {
         </h1>
         
         <div className="flex gap-4">
-          <button onClick={handleSave} className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-5 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 active:scale-95 uppercase">
+          {/* 🔥 BOTÃO LIMPAR 🔥 */}
+          <button 
+            onClick={handleClear} 
+            disabled={isSimulating} 
+            className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 border border-slate-700 px-5 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 uppercase"
+          >
+            <Trash2 size={16} /> Limpar
+          </button>
+
+          <button 
+            onClick={handleSave} 
+            disabled={isSimulating} 
+            className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 border border-slate-700 px-5 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 uppercase"
+          >
             <Save size={16} /> Salvar
           </button>
-          <button 
-            onClick={handleSimulate}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center gap-2 active:scale-95 uppercase"
-          >
-            <Play size={16} /> Simular
-          </button>
+          
+          {!isSimulating ? (
+            <button 
+                onClick={handleSimulate}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center gap-2 active:scale-95 uppercase"
+            >
+                <Play size={16} className="fill-current" /> Simular
+            </button>
+          ) : (
+            <button 
+                onClick={handleStop}
+                className="bg-red-600 hover:bg-red-500 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] flex items-center gap-2 active:scale-95 uppercase animate-pulse"
+            >
+                <Square size={16} className="fill-current" /> Parar
+            </button>
+          )}
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         
-        {/* ÁREA CENTRAL: Bancada de Desenho */}
         <div className="flex-1 h-full relative" ref={reactFlowWrapper}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onInit={setReactFlowInstance}
-            onDrop={onDrop}
-            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-            nodeTypes={nodeTypes}
-            fitView
-          >
+          <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onInit={setReactFlowInstance} onDrop={onDrop} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} nodeTypes={nodeTypes} fitView>
             <Background color="#334155" gap={24} size={1.5} />
             <Controls className="bg-slate-800 border-slate-700 fill-emerald-500" />
             <MiniMap nodeColor={(n) => n.style?.border?.split(' ')[2] || '#10b981'} maskColor="rgba(15, 23, 42, 0.8)" className="bg-slate-800 border border-slate-700 rounded-lg" />
           </ReactFlow>
         </div>
 
-        {/* ÁREA DA DIREITA: Dividida em Editor e Console */}
         <div className="w-112.5 border-l border-slate-800 flex flex-col shrink-0 z-10 shadow-2xl bg-slate-900">
-          
-          {/* TOPO: Editor de Código (70% da altura) */}
           <div className="flex flex-col h-[70%] border-b border-slate-800">
              <div className="h-10 bg-slate-900 flex items-center px-4 gap-2 text-slate-300 text-xs font-bold tracking-widest uppercase shrink-0">
                <Code2 size={16} className="text-emerald-500" /> Sandbox Python
@@ -300,24 +347,23 @@ const MakerStudio = () => {
              </div>
           </div>
 
-          {/* BASE: Console de Saída (30% da altura) */}
           <div className="flex flex-col h-[30%] bg-[#0d1117]">
-             <div className="h-8 bg-slate-900 flex items-center px-4 gap-2 text-slate-400 text-[10px] font-bold tracking-widest uppercase shrink-0 border-b border-slate-800">
-               <Terminal size={12} className="text-slate-400" /> Console Output
+             <div className="h-8 bg-slate-900 flex items-center justify-between px-4 text-slate-400 text-[10px] font-bold tracking-widest uppercase shrink-0 border-b border-slate-800">
+                <div className="flex items-center gap-2"><Terminal size={12} className="text-slate-400" /> Console Output</div>
+                {isSimulating && <span className="text-emerald-500 animate-pulse">Running...</span>}
              </div>
              <div className="flex-1 p-3 overflow-y-auto font-mono text-xs text-slate-300 space-y-1">
                 {logs.map((logStr, index) => (
                   <div key={index} className="wrap-break-word">
                     <span className="text-slate-500 mr-2">{new Date().toLocaleTimeString('pt-BR', {hour12: false})}</span>
-                    <span className={logStr.includes('ERRO') || logStr.includes('AVISO') ? 'text-red-400' : logStr.includes('✅') || logStr.includes('GO') ? 'text-emerald-400' : 'text-slate-300'}>
+                    <span className={`whitespace-pre-wrap ${logStr.includes('ERRO') || logStr.includes('AVISO') || logStr.includes('Erro') || logStr.includes('PARADA') ? 'text-red-400' : logStr.includes('✅') || logStr.includes('GO') ? 'text-emerald-400' : logStr.includes('HW') || logStr.includes('ELETRICO') ? 'text-blue-300' : 'text-slate-300'}`}>
                         {logStr}
                     </span>
                   </div>
                 ))}
-                <div ref={logEndRef} /> {/* Âncora para o auto-scroll */}
+                <div ref={logEndRef} />
              </div>
           </div>
-
         </div>
       </div>
     </div>
