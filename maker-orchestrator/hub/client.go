@@ -10,7 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync" // <--- Importante para sincronizar as rotinas
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -24,10 +24,11 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	Hub       *Hub
-	Conn      *websocket.Conn
-	Send      chan []byte
-	ActiveCmd *exec.Cmd
+	Hub         *Hub
+	Conn        *websocket.Conn
+	Send        chan []byte
+	ActiveCmd   *exec.Cmd
+	ActiveStdin io.WriteCloser // 🔥 NOVO: O tubo de entrada do Python
 }
 
 type MessageData struct {
@@ -61,6 +62,23 @@ func (c *Client) readPump() {
 				c.Send <- b
 			}
 
+			// ==========================================
+			// EVENTO: O USUÁRIO CLICOU EM UM COMPONENTE
+			// ==========================================
+			if msgData.Type == "gpio_input" {
+				// Se a simulação estiver rodando e o tubo estiver aberto
+				if c.ActiveStdin != nil {
+					// Injeta o comando direto no processo Python!
+					// Ex: "PIN_14_1\n"
+					command := fmt.Sprintf("%s\n", msgData.Payload)
+					c.ActiveStdin.Write([]byte(command))
+				}
+				continue
+			}
+
+			// ==========================================
+			// EVENTO: PARAR SIMULAÇÃO
+			// ==========================================
 			if msgData.Type == "simulation_stop" {
 				if c.ActiveCmd != nil && c.ActiveCmd.Process != nil {
 					c.ActiveCmd.Process.Kill()
@@ -70,24 +88,62 @@ func (c *Client) readPump() {
 				continue
 			}
 
+			// ==========================================
+			// EVENTO: INICIAR SIMULAÇÃO
+			// ==========================================
 			if msgData.Type == "simulation_start" {
-				fmt.Printf("\n🎯 [GO]: INICIANDO MATRIX DE HARDWARE...\n")
+				fmt.Printf("\n🎯 [GO]: INICIANDO MATRIX DE HARDWARE (COM INPUTS)...\n")
 
-				// --- 1. A INJEÇÃO DA MATRIX ---
+				// --- 1. A INJEÇÃO DA MATRIX (AGORA COM THREAD DE ESCUTA) ---
 				matrixMock := `
+import sys
+import threading
+import time
+
 class GPIO:
     BCM, BOARD = 10, 11
     OUT, IN = 1, 0
     HIGH, LOW = 1, 0
+    
+    # Dicionário secreto que guarda a voltagem real dos pinos
+    _state = {} 
+
     @staticmethod
     def setmode(mode): pass
+    
     @staticmethod
     def setup(pin, mode): pass
+    
     @staticmethod
     def output(pin, state):
         print(f"[GPIO_ACTION]: PIN {pin} -> {state}")
 
-import sys
+    @staticmethod
+    def input(pin):
+        # O código do usuário vai ler este dicionário
+        return GPIO._state.get(pin, GPIO.LOW)
+
+# --- THREAD DE ESCUTA DA MATRIX ---
+# Fica rodando em background lendo o que o Go escreve no terminal
+def _listen_to_go():
+    while True:
+        try:
+            line = sys.stdin.readline()
+            if not line: break
+            line = line.strip()
+            # Formato esperado do Go: PIN_14_1 ou PIN_14_0
+            if line.startswith("PIN_"):
+                parts = line.split("_")
+                pin = int(parts[1])
+                state = int(parts[2])
+                GPIO._state[pin] = state # Atualiza a física virtual!
+        except:
+            break
+
+# Inicia a escuta invisível
+t = threading.Thread(target=_listen_to_go, daemon=True)
+t.start()
+
 from types import ModuleType
 rpi = ModuleType("RPi")
 rpi.GPIO = GPIO
@@ -96,6 +152,9 @@ sys.modules["RPi.GPIO"] = GPIO
 
 def digitalWrite(pin, state):
     GPIO.output(pin, state)
+    
+def digitalRead(pin):
+    return GPIO.input(pin)
 `
 				fullCode := matrixMock + "\n" + msgData.Payload
 
@@ -113,10 +172,19 @@ def digitalWrite(pin, state):
 				tmpFile.Close()
 
 				cmd := exec.Command("python", "-u", tmpFile.Name())
+
+				// 🔥 A MÁGICA CONTRA O BUG DO WINDOWS 🔥
+				// Forçamos o Python a cuspir texto em UTF-8, aceitando emojis e acentos nativamente
+				cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8")
+
 				c.ActiveCmd = cmd
 
 				stdout, _ := cmd.StdoutPipe()
 				stderr, _ := cmd.StderrPipe()
+
+				// 🔥 NOVO: Abrimos a boca do Python para podermos falar com ele
+				stdin, _ := cmd.StdinPipe()
+				c.ActiveStdin = stdin
 
 				if err := cmd.Start(); err != nil {
 					sendMsg("error", "Falha ao iniciar motor físico.")
@@ -124,15 +192,11 @@ def digitalWrite(pin, state):
 					continue
 				}
 
-				// --- 2. O ESCUTADOR DE EVENTOS (COM ESPELHO NO LUBUNTU) ---
 				readPipe := func(pipe io.ReadCloser, isError bool) {
 					scanner := bufio.NewScanner(pipe)
 					for scanner.Scan() {
 						line := scanner.Text()
-
-						// ESPELHO: Imprime no seu terminal SSH para você ver a mágica
 						fmt.Printf("[PYTHON-STREAM]: %s\n", line)
-
 						if strings.HasPrefix(line, "[GPIO_ACTION]:") {
 							sendMsg("gpio_update", line)
 						} else {
@@ -145,7 +209,6 @@ def digitalWrite(pin, state):
 					}
 				}
 
-				// 🔥 CORREÇÃO DE CONCORRÊNCIA (WAITGROUP) 🔥
 				var wg sync.WaitGroup
 				wg.Add(2)
 
@@ -159,10 +222,11 @@ def digitalWrite(pin, state):
 				}()
 
 				go func() {
-					wg.Wait()  // Trava aqui até o Python cuspir a última letra
-					cmd.Wait() // Agora sim fecha o processo com segurança
+					wg.Wait()
+					cmd.Wait()
 					os.Remove(tmpFile.Name())
 					c.ActiveCmd = nil
+					c.ActiveStdin = nil // Limpa o tubo
 					fmt.Println("✅ [GO]: Processo finalizado com sucesso.")
 					sendMsg("finished", "EXECUÇÃO_CONCLUÍDA")
 				}()
